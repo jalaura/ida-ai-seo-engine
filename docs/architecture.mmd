@@ -1,0 +1,52 @@
+flowchart TD
+    subgraph CMS["Statamic CMS (Source of Truth)"]
+        A[Country Pages\n200+ Jurisdictions]
+        B[Private REST API\n/api/private/collections/countries/entries]
+    end
+
+    subgraph N8N["n8n (Automation Layer)"]
+        C[Fetcher Node\nGET + Bearer Token Auth]
+        D[Locale Filter\nlocale === 'en']
+        E[Defensive Extractor\n$json.slug OR $json.data.slug]
+        F[Text Splitter\nProseMirror JSON Chunking]
+        G[H1 Audit Workflow\nWeekly Scheduled]
+        H[Meta Optimizer Workflow\nDataForSEO + Claude]
+        I[Slug Guard\nFetch + Echo Slug]
+        J[Drift Check\nPre/Post PATCH Verification]
+    end
+
+    subgraph SUPABASE["Supabase (Vector Database)"]
+        K[Vector Store\nEmbeddings + Metadata]
+        L[page_content column\nProseMirror JSON]
+        M[Audit Flags\nAction Required Status]
+    end
+
+    subgraph AI["Claude AI (Editor)"]
+        N[Competitor Analysis\nTop 3 SERP via DataForSEO]
+        O[Meta Title Generator]
+        P[Meta Description Generator]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> K
+    K --> L
+    L --> G
+    G --> M
+    M -->|Notification| Q[Review Queue]
+    K --> H
+    H --> N
+    N --> O
+    N --> P
+    O --> I
+    P --> I
+    I --> J
+    J -->|Safe PATCH| B
+
+    style CMS fill:#e8f4f8,stroke:#2196F3
+    style N8N fill:#fff3e0,stroke:#FF9800
+    style SUPABASE fill:#e8f5e9,stroke:#4CAF50
+    style AI fill:#f3e5f5,stroke:#9C27B0

@@ -1,111 +1,173 @@
-# IDA AI-Powered SEO Engine: Project Overview
+# IDA AI-Powered SEO Engine
 
-## 1. Project Overview & Mission
+> **Version**: 1.0 (Blueprint) | **Status**: Pre-Build / Planning Complete | **Stack**: n8n · Supabase · Statamic · Claude AI
 
-The International Drivers Association (IDA) manages an extensive grid of country-specific web pages. This project introduces an **Intelligence Layer** atop the existing Statamic CMS, leveraging **n8n** and **Supabase**. The primary objective is to transition from manual content management to an automated system driven by AI agents, thereby scaling SEO auditing, internal linking, and content freshness without increasing operational headcount.
+An intelligence layer built on top of the International Drivers Association's existing Statamic CMS. This system automates SEO auditing, metadata optimization, and internal linking across 200+ country-specific pages using AI-driven workflows — without increasing operational headcount.
 
-### Primary Goals
+> **Acquisition Notice**: This project is currently in the pre-build stage. All architecture, requirements, and safety patterns are fully documented. See [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) for a complete build status log.
 
-*   **Centralize Site Intelligence**: Migrate page content and SEO metadata into a searchable Supabase Vector Store.
-*   **Automate Audits**: Instantly identify H1 violations and missing entities across over 200 jurisdictions.
-*   **Semantic Optimization**: Utilize AI (Claude) to dynamically rewrite metadata based on real-time competitor SERP data.
-*   **Contextual Linking**: Automatically identify and propose internal links through semantic "Vector" matching.
+---
+
+## Table of Contents
+
+1. [Project Overview](#1-project-overview)
+2. [System Architecture](#2-system-architecture)
+3. [Tech Stack](#3-tech-stack)
+4. [Project Phases](#4-project-phases)
+5. [Technical Implementation Guidelines](#5-technical-implementation-guidelines)
+6. [Repository Structure](#6-repository-structure)
+7. [Setup & Onboarding Roadmap](#7-setup--onboarding-roadmap)
+8. [Documentation Index](#8-documentation-index)
+9. [Contributing](#9-contributing)
+
+---
+
+## 1. Project Overview
+
+The International Drivers Association (IDA) manages an extensive grid of country-specific web pages spanning over 200 jurisdictions. This project introduces an **Intelligence Layer** on top of the existing Statamic CMS by connecting it to n8n (automation), Supabase (vector database), and Claude AI (content editor).
+
+The core mission is to transition from manual, time-intensive content management to a fully automated, AI-driven SEO pipeline. The system enables IDA to scale auditing, optimization, and internal linking operations without proportional increases in headcount — a critical operational advantage for both current operations and acquisition positioning.
+
+**Primary Goals**
+
+| Goal | Description |
+| :--- | :---------- |
+| **Centralize Site Intelligence** | Move all page content and SEO metadata into a searchable Supabase Vector Store |
+| **Automate Audits** | Instantly identify H1 violations and structural issues across 200+ jurisdictions |
+| **Semantic Optimization** | Use Claude AI to rewrite metadata based on real-time competitor SERP data |
+| **Contextual Linking** | Automatically identify and propose internal links via semantic vector matching |
+
+---
 
 ## 2. System Architecture
 
-The system operates as a closed-loop mechanism: n8n extracts data from Statamic, processes it within Supabase using AI, and subsequently pushes optimized content back to Statamic following a review process.
+The system operates as a continuous closed loop. n8n pulls content from Statamic, processes and stores it in Supabase with AI assistance, and — after human review — pushes optimizations back to Statamic safely.
 
-| Component       | Role                                    | Description                                        |
-| :-------------- | :-------------------------------------- | :------------------------------------------------- |
-| **Statamic**    | The "Body" (Content Source)             | Existing CMS where content resides.                |
-| **n8n**         | The "Nervous System" (Automation)       | Orchestrates data movement and transformation.     |
-| **Supabase**    | The "Brain" (Data & Metadata Storage)   | Stores vectors and metadata for AI analysis.       |
-| **Claude (AI)** | The "Editor" (Content Analysis & Draft) | Analyzes and drafts content optimizations.         |
+```
+Statamic CMS  ──►  n8n (Automation)  ──►  Supabase (Vector DB)
+      ▲                                           │
+      │                                     Claude AI
+      └──────────── Safe PATCH (Slug Guard + Drift Check) ◄──────
+```
+
+![System Architecture Diagram](docs/architecture.png)
+
+| Component | Role | Responsibility |
+| :-------- | :--- | :------------- |
+| **Statamic** | The "Body" | Source of truth for all page content and metadata |
+| **n8n** | The "Nervous System" | Orchestrates all data movement, transformation, and scheduling |
+| **Supabase** | The "Brain" | Stores vectorized content and metadata; powers semantic search and audits |
+| **Claude AI** | The "Editor" | Analyzes competitor data and drafts optimized meta titles and descriptions |
+
+---
 
 ## 3. Tech Stack
 
-This project utilizes a modern, robust tech stack designed for scalability and automation:
+| Technology | Version | Purpose |
+| :--------- | :------ | :------ |
+| **n8n** | Latest | Workflow automation, scheduling, API orchestration |
+| **Supabase** | Latest | PostgreSQL + pgvector for semantic search and metadata storage |
+| **Statamic** | Latest | Flat-file CMS; primary content source via Private REST API |
+| **Claude (Anthropic)** | Latest | LLM for meta content analysis and generation |
+| **DataForSEO** | API v3 | SERP competitor data sourcing for Phase 2 |
 
-*   **n8n**: Workflow automation and integration platform.
-*   **Supabase**: Open-source Firebase alternative, used as a vector database for semantic search and metadata storage.
-*   **Statamic**: Flat-file CMS, serving as the primary source of truth for content.
-*   **Claude**: Advanced AI model for natural language processing, content analysis, and generation.
+---
 
-## 4. Setup Instructions
+## 4. Project Phases
 
-This section outlines the initial setup phases for the IDA AI-Powered SEO Engine. The project is currently in its planning stages, and these instructions reflect the intended implementation roadmap.
+### Phase 0 — Intelligence Indexer (Ingestion)
 
-### Week 1: Setup n8n + Supabase Connection
+**Goal**: Populate Supabase with every country page from Statamic to enable all future automations.
 
-**Goal**: Establish foundational connectivity and test data ingestion.
+The ingestion workflow calls `GET /api/private/collections/countries/entries` using Bearer Token authentication. Because the Statamic API returns entries for all locales regardless of the `?site=` parameter, an n8n Filter Node **must** retain only entries where `locale === 'en'`. A Defensive Extractor pattern handles the inconsistency where fields may appear at the top-level or inside a nested `data` object (e.g., `{{ $json.slug || $json.data.slug }}`). Content is chunked using the Recursive Character Text Splitter and stored as vector embeddings in Supabase.
 
-1.  **n8n Instance**: Ensure an n8n instance is deployed and accessible.
-2.  **Supabase Project**: Set up a new Supabase project, including database and vector store configurations.
-3.  **Initial Ingestion**: Configure an n8n workflow to fetch data from Statamic and store it in Supabase. Begin with 10 test pages to validate the process.
+### Phase 1 — Structural & H1 Audit
 
-### Week 2: Build the H1 Audit Workflow
+**Goal**: Identify and flag structural SEO weaknesses across the full page grid on a weekly cadence.
 
-**Goal**: Implement a read-only workflow to identify structural SEO issues.
+A scheduled n8n workflow scans the `page_content` column in Supabase, counting heading nodes where `attrs.level === 1`. Any page where the H1 count is not exactly 1 is flagged as "Action Required" in Supabase, and a notification is dispatched to a human review queue. This is a read-only workflow — no content is modified.
 
-1.  **Develop H1 Audit Workflow**: Create an n8n workflow that scans the `page_content` column in Supabase.
-2.  **Logic Implementation**: The workflow should count heading nodes with `attrs.level: 1`. If the H1 count is not equal to 1, flag the corresponding row in Supabase as "Action Required" and trigger a notification to a review queue.
+### Phase 2 — Meta & Content Optimizer
 
-### Week 3: Implement the Meta Optimizer with Slug Guard
+**Goal**: Automate the rewriting of page titles and descriptions to outperform SERP competitors.
 
-**Goal**: Automate meta title and description optimization while ensuring URL integrity.
+The workflow fetches the top 3 SERP competitors via DataForSEO, sends the current `meta_title` alongside competitor data to Claude AI, and receives optimized meta titles and descriptions in return. Before any PATCH request is made to Statamic, the **Slug Guard** (see Section 5) and **Drift Check** patterns are applied to ensure data integrity.
 
-1.  **Meta Optimizer Workflow**: Develop an n8n workflow for automated rewriting of Titles and Descriptions.
-2.  **Data Sourcing**: Integrate with DataForSEO to fetch top 3 SERP competitors.
-3.  **AI Analysis & Drafting**: Send the current `meta_title` and competitor data to Claude for analysis and generation of new meta titles and descriptions.
-4.  **Slug Guard Implementation**: Crucially, the n8n workflow MUST fetch the current slug from Statamic and "echo" it back in the update body during any PATCH request to prevent accidental deletion of page URLs.
+---
 
-## 5. Quick Start Guide (Roadmap)
+## 5. Technical Implementation Guidelines
 
-This section provides a high-level roadmap for new users to get started with the IDA AI-Powered SEO Engine. The features described are part of the planned development.
+### The Slug Guard (Critical — Must Implement Before Any Write-Back)
 
-### PRD Phase 0: The Intelligence Indexer (Ingestion)
+Statamic will **delete a page's URL** if the `slug` field is omitted from a PATCH request. Every n8n workflow that writes back to Statamic must first fetch the current slug and explicitly include it in the PATCH request body, even when the slug is not being modified.
 
-**Goal**: Populate Supabase with all country pages from Statamic to enable future automations.
+### The Drift Check (Pre/Post Verification Pattern)
 
-#### n8n Workflow Requirements:
+Every write-back workflow must implement the following three-step verification:
 
-*   **Fetcher**: Call `GET /api/private/collections/countries/entries` using Bearer Token authentication.
-*   **Locale Filter**: Implement an n8n Filter Node to retain only entries where `locale === 'en'` (or the target language), as the API returns entries for all locales regardless of the `?site=` parameter.
-*   **Defensive Extractor**: Use n8n expressions like `{{ $json.slug || $json.data.slug }}` to handle fields that may appear at either the top-level or within the `data` object.
-*   **Content Chunking**: Utilize the Recursive Character Text Splitter node to break down ProseMirror JSON content into manageable chunks for AI processing.
-*   **Vector Storage**: Employ the Supabase Vector Store node to store the processed text and its corresponding mathematical "Embedding."
+1. **Capture**: Record the state of critical fields (`title`, `slug`, etc.) before the PATCH.
+2. **Patch**: Execute the PATCH request.
+3. **Compare**: Verify the response to confirm that guarded fields have not changed unexpectedly.
 
-### PRD Phase 1: Structural & H1 Audit
+### Handling Statamic Data Types
 
-**Goal**: Identify structural weaknesses (e.g., missing H1s or poorly structured H2s) across the page grid.
+**Select Fields** (e.g., Continent) are returned by the API as full objects. When writing back via PATCH, only the raw string key must be sent (e.g., `"south-america"`, not the full object).
 
-#### Requirements:
+**Bard Fields** store content as ProseMirror JSON. n8n workflows must manipulate the JSON nodes directly and must not convert content to raw HTML, as this would corrupt Statamic's native formatting.
 
-*   **Trigger**: The workflow will be scheduled to run weekly in n8n.
-*   **Logic**: Scan the `page_content` column in Supabase. Count heading nodes where `attrs.level: 1`. If the H1 count is not equal to 1, flag the row in Supabase as "Action Required" and send a notification to a review queue.
+---
 
-### PRD Phase 2: Meta & Content Optimizer
+## 6. Repository Structure
 
-**Goal**: Achieve automated rewriting of Titles and Descriptions to outperform competitors.
+```
+ida-ai-seo-engine/
+├── README.md                          # This file
+├── CHANGELOG.md                       # Version history and planned feature log
+├── .gitignore
+├── .github/
+│   ├── PULL_REQUEST_TEMPLATE.md       # PR checklist with safety gates
+│   └── ISSUE_TEMPLATE/
+│       ├── bug_report.md
+│       └── feature_request.md
+└── docs/
+    ├── PROJECT_STATUS.md              # Live build status tracker (acquisition log)
+    ├── IDA_AI_Powered_SEO_Engine_PRD.md          # Full Product Requirements Document
+    ├── IDA_AI_Powered_SEO_Engine_Architecture_System_Design.md  # Architecture spec
+    ├── api_integration_reference.md   # API & integration reference
+    ├── Contributing_Maintenance_Guide.md  # Contributor guide & onboarding
+    ├── architecture.mmd               # Mermaid source diagram
+    └── architecture.png               # Rendered architecture diagram
+```
 
-#### Requirements:
+---
 
-*   **Data Sourcing**: Fetch the top 3 SERP competitors via DataForSEO.
-*   **Analysis**: Send the current `meta_title` and competitor data to Claude for analysis.
-*   **Drafting**: Claude will generate a new Meta Title and Description.
-*   **The Slug Guard (Critical Maintenance)**: To prevent accidental deletion of page URLs, the n8n workflow MUST fetch the current slug and "echo" it back in the update body for any PATCH request to Statamic.
+## 7. Setup & Onboarding Roadmap
 
-## 6. Technical Implementation Guidelines (April 2026 Standards)
+| Week | Focus | Key Activities | Outcome |
+| :--- | :---- | :------------- | :------ |
+| **Week 1** | Setup & Ingestion | Deploy n8n, configure Supabase, set up Statamic Bearer Token auth, run Phase 0 for 10 test pages | Functional ingestion pipeline validated on test data |
+| **Week 2** | H1 Audit | Build the read-only H1 Audit workflow; learn n8n logic safely with no write-back risk | Automated weekly H1 violation detection operational |
+| **Week 3** | Meta Optimizer | Implement Phase 2 with DataForSEO + Claude; deploy Slug Guard and Drift Check before any live PATCH | AI-driven meta optimization running safely in production |
 
-### Handling Data Types
+---
 
-*   **Select Fields (e.g., Continent)**: The Statamic API returns these as objects. When writing back via n8n (PATCH), only the raw string key (e.g., "south-america") should be sent.
-*   **Bard Fields**: Content is stored as ProseMirror JSON. n8n should manipulate the JSON nodes directly rather than converting to raw HTML to preserve Statamic’s formatting.
+## 8. Documentation Index
 
-### Update Safety (The "Drift" Check)
+| Document | Description |
+| :------- | :---------- |
+| [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) | Live build status, component tracker, risk register — primary acquisition reference |
+| [`docs/IDA_AI_Powered_SEO_Engine_PRD.md`](docs/IDA_AI_Powered_SEO_Engine_PRD.md) | Full Product Requirements Document with success metrics and scalability plan |
+| [`docs/IDA_AI_Powered_SEO_Engine_Architecture_System_Design.md`](docs/IDA_AI_Powered_SEO_Engine_Architecture_System_Design.md) | Detailed system architecture, data flow, and safety patterns |
+| [`docs/api_integration_reference.md`](docs/api_integration_reference.md) | API endpoints, authentication, field handling, and integration specs |
+| [`docs/Contributing_Maintenance_Guide.md`](docs/Contributing_Maintenance_Guide.md) | Contributor guidelines, maintenance patterns, and onboarding roadmap |
+| [`CHANGELOG.md`](CHANGELOG.md) | Full history of changes and planned feature backlog |
 
-Every n8n workflow that writes back to Statamic should adhere to the **Pre/Post Verification Pattern**:
+---
 
-1.  **Capture State**: Record the state of critical fields (e.g., title, slug) before performing the PATCH operation.
-2.  **Perform PATCH**: Execute the update operation.
-3.  **Compare Response**: Verify that the slug and other guarded fields have not changed unexpectedly in the response, ensuring data integrity.
+## 9. Contributing
+
+Before contributing, please read [`docs/Contributing_Maintenance_Guide.md`](docs/Contributing_Maintenance_Guide.md) in full. All pull requests must pass the safety checklist defined in [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md), with particular attention to the Slug Guard and Drift Check requirements for any workflow that writes back to Statamic.
+
+---
+
+*IDA AI-Powered SEO Engine — Version 1.0 Blueprint | International Drivers Association*
